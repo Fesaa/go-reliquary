@@ -53,7 +53,7 @@ func (s *Sniffer) Register(commandId uint16, handler func(cmd GameCommand, msg p
 		panic(fmt.Sprintf("cannot register handler for unknown command %d", commandId))
 	}
 	s.handlerRegistry[commandId] = handler
-	logger.Debug("handler registered for command", "id", commandId, "name", PacketNames[(int)(commandId)])
+	logger.Debug("handler registered for command", "id", commandId, "name", PacketNames[commandId])
 	return s
 }
 

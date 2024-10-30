@@ -16,7 +16,7 @@ def main():
         file.write(go_code_ids)
 
     # Generate Go code for packet_names.go with map
-    go_code_names = "package reliquary\n\n// Generated file, do not edit\n\nvar PacketNames = map[int]string{\n"
+    go_code_names = "package reliquary\n\n// Generated file, do not edit\n\nvar PacketNames = map[uint16]string{\n"
     for key, value in data.items():
         go_code_names += f"    {key}: \"{value}\",\n"
     go_code_names += "}\n"
@@ -31,8 +31,8 @@ def main():
     // Generated file, do not edit
     
     import (
-        "google.golang.org/protobuf/proto"
         "github.com/Fesaa/go-reliquary/pb"
+        "google.golang.org/protobuf/proto"
     )
     
     // The commands with ids [5638, 4745, 4720, 4711, 42, 83, 2828] are not mapped

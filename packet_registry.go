@@ -3,8 +3,8 @@ package reliquary
     // Generated file, do not edit
     
     import (
-        "google.golang.org/protobuf/proto"
         "github.com/Fesaa/go-reliquary/pb"
+        "google.golang.org/protobuf/proto"
     )
     
     // The commands with ids [5638, 4745, 4720, 4711, 42, 83, 2828] are not mapped

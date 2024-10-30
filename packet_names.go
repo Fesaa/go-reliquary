@@ -2,7 +2,7 @@ package reliquary
 
 // Generated file, do not edit
 
-var PacketNames = map[int]string{
+var PacketNames = map[uint16]string{
     2639: "TakeTrialActivityRewardScRsp",
     2686: "CurTrialActivityScNotify",
     2660: "TakeMaterialSubmitActivityRewardScRsp",
