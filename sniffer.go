@@ -10,7 +10,7 @@ import (
 
 func NewSniffer() *Sniffer {
 	return &Sniffer{
-		handlerRegistry: make(map[uint16]func(cmd GameCommand, msg proto.Message) error),
+		handlerRegistry: make(map[uint16]Handler),
 		errorCh:         make(chan HandlerError),
 	}
 }
@@ -20,9 +20,11 @@ type Sniffer struct {
 	recvKcp *KcpSniffer
 	key     []byte
 
-	handlerRegistry map[uint16]func(cmd GameCommand, msg proto.Message) error
+	handlerRegistry map[uint16]Handler
 	errorCh         chan HandlerError
 }
+
+type Handler func(cmd GameCommand, msg proto.Message) error
 
 type HandlerError struct {
 	CmdId uint16
@@ -47,14 +49,20 @@ func (s *Sniffer) propagate(cmd GameCommand, err error) {
 
 // Register a handler for the passed commandId, the msg in the function can be cast to the correct pb struct
 // This assumes you passed the correct commandId.
-func (s *Sniffer) Register(commandId uint16, handler func(cmd GameCommand, msg proto.Message) error) *Sniffer {
+func (s *Sniffer) Register(commandId uint16, handlers ...Handler) *Sniffer {
+	for _, h := range handlers {
+		s.register(commandId, h)
+	}
+	return s
+}
+
+func (s *Sniffer) register(commandId uint16, handler Handler) {
 	_, ok := packetRegistry[commandId]
 	if !ok {
 		panic(fmt.Sprintf("cannot register handler for unknown command %d", commandId))
 	}
 	s.handlerRegistry[commandId] = handler
 	logger.Debug("handler registered for command", "id", commandId, "name", PacketNames[commandId])
-	return s
 }
 
 func (s *Sniffer) fireHandler(commands []GameCommand) {
