@@ -7,16 +7,26 @@ import (
 )
 
 var (
+	// LevelTrace a level below slog.LevelDebug, will log every packet received
 	LevelTrace slog.Level = -8
 
 	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelWarn,
+		Level: slog.LevelWarn,
 	})).With("module", "go-reliquary")
 )
 
+// SetLogger sets the library's logger. The argument module with value 'go-reliquary' is always added
 func SetLogger(l *slog.Logger) {
-	logger = l.With("module", "go-reliquary")
+	logger = l.With(slog.String("module", "go-reliquary"))
+}
+
+// SetLevel sets the logger to the default one with the given slog.Level
+// Use SetLogger for more configuration
+func SetLevel(level slog.Level) {
+	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     level,
+	})).With("module", "go-reliquary")
 }
 
 func trace(msg string, args ...interface{}) {

@@ -2,18 +2,14 @@ package reliquary
 
 import (
 	"fmt"
-	"github.com/Fesaa/go-reliquary/log"
 	"github.com/Fesaa/go-reliquary/pb"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"google.golang.org/protobuf/proto"
-	"log/slog"
 	"testing"
 )
 
 func TestOffline(t *testing.T) {
-	log.SetLogLevel(slog.LevelDebug)
-	log.SetLogLevel(log.LevelTrace)
 	handle, err := pcap.OpenOffline("./login_dump.pcapng")
 	if err != nil {
 		t.Error(err)
@@ -30,15 +26,15 @@ func TestOffline(t *testing.T) {
 		}
 
 		if p == nil {
-			log.Warn("got a nil packet?", "err", err)
+			logger.Warn("got a nil packet?", "err", err)
 			continue
 		}
 
 		switch p.PacketType() {
 		case ConnectionPacketType:
-			log.Info("found connection packet", "type", p.(*ConnectionPacket).Type)
+			logger.Info("found connection packet", "type", p.(*ConnectionPacket).Type)
 		case CommandsPacketType:
-			log.Info("found commands packet", "len", len(p.(*CommandsPacket).Commands))
+			logger.Info("found commands packet", "len", len(p.(*CommandsPacket).Commands))
 		}
 	}
 }
@@ -59,7 +55,7 @@ func TestLive(t *testing.T) {
 	snf := NewSniffer()
 	src := gopacket.NewPacketSource(live, live.LinkType())
 
-	log.Info("starting reading...")
+	logger.Info("starting reading...")
 	for packet := range src.Packets() {
 		p, err := snf.ReadPacket(packet)
 		if err != nil {
@@ -70,9 +66,9 @@ func TestLive(t *testing.T) {
 
 		switch p.PacketType() {
 		case ConnectionPacketType:
-			log.Info("found connection packet", "type", p.(*ConnectionPacket).Type)
+			logger.Info("found connection packet", "type", p.(*ConnectionPacket).Type)
 		case CommandsPacketType:
-			log.Debug("found commands packet", "len", len(p.(*CommandsPacket).Commands))
+			logger.Debug("found commands packet", "len", len(p.(*CommandsPacket).Commands))
 			for _, cmd := range p.(*CommandsPacket).Commands {
 				switch cmd.Id {
 				case ChessRogueRollDiceScRsp:
@@ -80,11 +76,11 @@ func TestLive(t *testing.T) {
 					if err = proto.Unmarshal(cmd.ProtoData, &chessRogueRollDiceScRsp); err != nil {
 						t.Error(err)
 					} else {
-						log.Info("unmarshaled ChessRogueRollDiceScRsp successfully", "res", fmt.Sprintf("%+v", chessRogueRollDiceScRsp))
+						logger.Info("unmarshaled ChessRogueRollDiceScRsp successfully", "res", fmt.Sprintf("%+v", chessRogueRollDiceScRsp))
 					}
 				}
 
-				//log.Info("found command", "cmd", cmd.Id, "dataLen", len(cmd.ProtoData))
+				//logger.Info("found command", "cmd", cmd.Id, "dataLen", len(cmd.ProtoData))
 			}
 		}
 	}
