@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/Fesaa/go-reliquary"
 	"github.com/google/gopacket"
@@ -101,7 +103,14 @@ func LogProtoMessage(cmd reliquary.GameCommand, message proto.Message) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s(%d): %s\n\n", cmd.Name, cmd.Id, string(marshaledJSON))
+
+	var indentedJson bytes.Buffer
+	err = json.Indent(&indentedJson, marshaledJSON, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s(%d):\n %s\n\n", cmd.Name, cmd.Id, indentedJson.String())
 	return nil
 }
 

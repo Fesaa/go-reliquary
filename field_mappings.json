@@ -4968,6 +4968,27 @@
   "FIOAACNKLPC": "characters",
   "FBCKBGGGLFH": "uuid",
 
-  "ECIOJNHACLI": "CosmicFragmentAmount"
+  "ECIOJNHACLI": "CosmicFragmentAmount",
+  "CEKOLCPLBED": "Language",
+  "CBLEOKIPEEA": "OSVersion",
+  "NEJJEFEOJOJ": "OS",
+  "FLJNOLCHBBC": "ClientVersion",
+  "MJAJBCHKDFP": "ClientVersionCommit",
+  "OGKGOLNAICH": "DeviceInfo",
+  "KLMOOMBPHIO": "SerialNumber",
+  "AIEONDBHNDC": "SerialNumber",
+  "OEOKBLIOGCB": "DeviceId",
+  "OPNBNKJAIKD": "Resolution",
+  "HDPJMCHLGCM": "DeviceInfoJson",
+
+  "OFOKLBOCBHP": "SupportCharacters",
+  "EKBOGJCEIKD": "StarfaringCompanions",
+  "DFOJIIBKEIL": "CharacterId",
+  "HHLJKNIOGKH": "Position",
+
+  "MNDMHKPHCDA": "Bio",
+  "GNKGNLOHFCN": "AvatarIcon",
+  "BEJGAEBCGJP": "Id",
+  "NCDFJDIJFFJ": "UnlockedAvatarIcons"
 
 }
