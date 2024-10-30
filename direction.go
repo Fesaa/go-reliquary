@@ -26,7 +26,7 @@ func (d Direction) String() string {
 	}
 }
 
-func DirectionFromUdp(udp *layers.UDP) Direction {
+func directionFromUdp(udp *layers.UDP) Direction {
 	if slices.Contains(PORTS, udp.DstPort.String()) {
 		return Received
 	}
@@ -35,5 +35,6 @@ func DirectionFromUdp(udp *layers.UDP) Direction {
 		return Send
 	}
 
+	logger.Warn("packet found with unknown direction", "dst", udp.DstPort.String(), "src", udp.SrcPort.String())
 	return Unknown
 }

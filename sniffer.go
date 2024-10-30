@@ -17,9 +17,10 @@ func NewSniffer() *Sniffer {
 }
 
 type Sniffer struct {
-	sentKcp *KcpSniffer
-	recvKcp *KcpSniffer
-	key     []byte
+	sentKcp     *kcpSniffer
+	recvKcp     *kcpSniffer
+	key         *Key
+	initialKeys map[uint32]*Key
 
 	handlerRegistry map[uint16]Handler
 	errorCh         chan HandlerError
@@ -49,7 +50,7 @@ func (s *Sniffer) propagate(cmd GameCommand, err error) {
 }
 
 // Register a handler for the passed commandId, the msg in the function can be cast to the correct pb struct
-// This assumes you passed the correct commandId.
+// This assumes you passed the correct commandId. Will panic if not
 func (s *Sniffer) Register(commandId uint16, handlers ...Handler) *Sniffer {
 	for _, h := range handlers {
 		s.register(commandId, h)
@@ -71,22 +72,21 @@ func (s *Sniffer) register(commandId uint16, handler Handler) {
 
 func (s *Sniffer) fireHandler(commands []GameCommand) {
 	for _, cmd := range commands {
-		l := logger.With("id", cmd.Id, "name", cmd.Name)
+		l := logger.WithArgs("id", cmd.Id, "name", cmd.Name)
 		handler, ok := s.handlerRegistry[cmd.Id]
 		if !ok {
-			traceL(l, "no handler for command")
+			l.Trace("no handler for command")
 			continue
 		}
 
 		var msg = packetRegistry[cmd.Id]()
-		l.Debug("extra command info before proto.Unmarshal", "dateLen", cmd.DataLen, "ProtoDataLen", len(cmd.ProtoData))
 		if err := proto.Unmarshal(cmd.ProtoData, msg); err != nil {
 			l.Error("failed to unmarshal packet", "err", err)
 			s.propagate(cmd, fmt.Errorf("cannot unmarshal protobuf packet: %w", err))
 			continue
 		}
 
-		traceL(l, "firing handler")
+		l.Trace("firing handler")
 		if err := handler(cmd, msg); err != nil {
 			l.Warn("handler error", "err", err)
 			s.propagate(cmd, err)
@@ -102,9 +102,10 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	if err != nil {
 		return nil, err
 	}
+	l := logger.WithArgs("packetType", connPacket.Type, "direction", connPacket.Direction)
 
-	if isTraceEnabled() {
-		trace("received connection packet", "type", connPacket.Type, "payloadLength", len(connPacket.Payload), "bytes", bytesAsHex(connPacket.Payload))
+	if l.IsTraceEnabled() {
+		l.Trace("received connection packet", "payloadLength", len(connPacket.Payload), "bytes", bytesAsHex(connPacket.Payload))
 	}
 
 	switch connPacket.Type {
@@ -112,50 +113,39 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 		s.sentKcp = nil
 		s.recvKcp = nil
 		s.key = nil
+		l.Info("state reset after HandshakeRequested packet")
 		return connPacket, nil
 	case HandshakeEstablished:
 		return connPacket, nil
 	case Disconnected:
 		return connPacket, nil
 	case SegmentData:
-		commands, err := s.handleKCP(connPacket.Direction, connPacket.Payload)
-		if err != nil {
+		var commands []GameCommand
+		if commands, err = s.handleKCP(connPacket.Direction, connPacket.Payload); err != nil {
 			return nil, err
 		}
 		s.fireHandler(commands)
-		return &CommandsPacket{Commands: commands}, nil
+		return &CommandsPacket{
+			_conn:     connPacket,
+			Commands:  commands,
+			Direction: connPacket.Direction,
+		}, nil
 	}
 
-	logger.Warn("unhandled packet", "type", connPacket.Type)
+	l.Warn("unhandled packet", "len", len(connPacket.Payload))
 	return nil, errors.New("unhandled packet")
 }
 
 func (s *Sniffer) handleKCP(direction Direction, segment []byte) ([]GameCommand, error) {
-	dKcp := func() *KcpSniffer {
-		switch direction {
-		case Received:
-			return s.recvKcp
-		case Send:
-			return s.sentKcp
-		default:
-			panic("invalid direction in packet")
-		}
-	}()
+	dKcp := s.getKCP(direction)
 
 	if dKcp == nil {
-		nKcp, err := NewKcpSniffer(segment)
+		nKcp, err := newKcpSniffer(segment)
 		if err != nil {
 			return nil, err
 		}
 		dKcp = nKcp
-		switch direction {
-		case Received:
-			s.recvKcp = nKcp
-		case Send:
-			s.sentKcp = nKcp
-		default:
-			panic("invalid direction in packet")
-		}
+		s.setKCP(direction, nKcp)
 	}
 
 	if dKcp == nil {
@@ -163,35 +153,67 @@ func (s *Sniffer) handleKCP(direction Direction, segment []byte) ([]GameCommand,
 	}
 
 	commands := make([]GameCommand, 0)
-	for _, data := range dKcp.ReceiveSegments(segment) {
-		command, err := s.receiveCommand(data)
+	splitData, err := dKcp.receive(segment)
+	if err != nil {
+		return nil, err
+	}
+	for _, data := range splitData {
+		command, err := s.readCommand(data)
 		if err != nil {
 			return nil, err
 		}
-		trace("command packet read from SegmentData", "commandId", command.Id, "dataLen", len(command.ProtoData))
+		logger.Trace("command packet read from SegmentData", "commandId", command.Id, "dataLen", len(command.ProtoData))
 		commands = append(commands, *command)
 	}
 
-	trace("returning commands after KCP handle", "amount", len(commands))
 	return commands, nil
 }
 
-func (s *Sniffer) receiveCommand(data []byte) (*GameCommand, error) {
-	key := func(data []byte) []byte {
-		if s.key != nil {
-			return s.key
-		}
-		return getKnownKey(data)
-	}(data)
+func (s *Sniffer) getKCP(direction Direction) *kcpSniffer {
+	switch direction {
+	case Received:
+		return s.recvKcp
+	case Send:
+		return s.sentKcp
+	default:
+		panic(fmt.Sprintf("cannot get KCP for %d direction", direction))
+	}
+}
 
-	decryptedCommandData := DecryptCommand(key, data)
-	command, err := GameCommandFromData(decryptedCommandData)
+func (s *Sniffer) setKCP(direction Direction, kcp *kcpSniffer) {
+	switch direction {
+	case Received:
+		s.recvKcp = kcp
+	case Send:
+		s.sentKcp = kcp
+	default:
+		panic(fmt.Sprintf("cannot set KCP for %d direction", direction))
+	}
+}
+
+func (s *Sniffer) getKey(data []byte) *Key {
+	if s.key != nil {
+		return s.key
+	}
+
+	if key, ok := s.initialKeys[version(data)]; ok {
+		return key
+	}
+
+	return getKnownKey(data)
+}
+
+func (s *Sniffer) readCommand(data []byte) (*GameCommand, error) {
+	key := s.getKey(data)
+
+	decryptedCommandData := key.decryptCommand(data)
+	command, err := gameCommandFromData(decryptedCommandData)
 	if err != nil {
 		return nil, err
 	}
 
-	if isTraceEnabled() {
-		trace("received", "data", base64.StdEncoding.EncodeToString(command.ProtoData))
+	if logger.IsTraceEnabled() {
+		logger.Trace("received", "data", base64.StdEncoding.EncodeToString(command.ProtoData))
 	}
 
 	if command.Id == PlayerGetTokenScRsp {
@@ -200,8 +222,10 @@ func (s *Sniffer) receiveCommand(data []byte) (*GameCommand, error) {
 			return nil, fmt.Errorf("unable to unmarshal PlayerGetTokenScRsp: %v", err)
 		}
 		seed := playerGetTokenScRsp.SecretKeySeed
-		s.key = NewKeyFromSeed(seed)
-		logger.Info("new session key was set", "seed", seed)
+
+		keyBytes := newKeyBytesFromSeed(seed)
+		s.key = &Key{_bytes: keyBytes}
+		logger.Info("new session Key was set", "seed", seed)
 	}
 
 	return command, nil

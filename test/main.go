@@ -10,7 +10,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 	"sync"
@@ -48,10 +47,6 @@ var (
 		reliquary.ChessRogueStartCsReq,
 		reliquary.GetPlayerBoardDataScRsp,
 		reliquary.PlayerLoginCsReq,
-		reliquary.PlayerGetTokenScRsp,
-		reliquary.GetRogueCollectionCsReq,
-		reliquary.PlayerGetTokenCsReq,
-		reliquary.PlayerGetTokenScRsp,
 	}
 )
 
@@ -68,17 +63,10 @@ func main() {
 
 	defer handle.Close()
 
-	//reliquary.SetLevel(slog.LevelDebug)
 	sniffer = reliquary.NewSniffer()
 	for _, id := range logIds {
 		sniffer.Register(id, LogProtoMessage)
 	}
-	reliquary.SetLogger(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		//Level: slog.LevelDebug,
-		//Level:     reliquary.LevelTrace,
-		Level:     slog.LevelInfo,
-		AddSource: true,
-	})))
 
 	src := gopacket.NewPacketSource(handle, handle.LinkType())
 	slog.Info("starting sniffer")

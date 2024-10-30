@@ -6,7 +6,9 @@ import (
 )
 
 type CommandsPacket struct {
-	Commands []GameCommand
+	_conn     *ConnectionPacket
+	Direction Direction
+	Commands  []GameCommand
 }
 
 type GameCommand struct {
@@ -23,7 +25,16 @@ func (cp CommandsPacket) PacketType() PacketType {
 	return CommandsPacketType
 }
 
-func GameCommandFromData(data []byte) (*GameCommand, error) {
+// ConnPacket returns the original SegmentData ConnectionPacket
+func (cp CommandsPacket) ConnPacket() *ConnectionPacket {
+	return cp._conn
+}
+
+func gameCommandFromData(data []byte) (*GameCommand, error) {
+	if logger.IsTraceEnabled() {
+		logger.Trace("reading command from bytes", "len", len(data), "bytes", bytesAsHex(data))
+	}
+
 	if len(data) < HEADER_OVERHEAD {
 		logger.Warn("header not complete, missing bytes", "wanted", HEADER_OVERHEAD, "got", len(data))
 		return nil, errors.New("header not complete")

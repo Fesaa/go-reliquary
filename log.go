@@ -12,35 +12,45 @@ var (
 	// LevelTrace a level below slog.LevelDebug, will log every packet received
 	LevelTrace slog.Level = -8
 
-	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelWarn,
-	})).With("module", "go-reliquary")
+	logLevel slog.LevelVar
+	logger   *traceLogger
 )
 
-// SetLogger sets the library's logger. The argument module with value 'go-reliquary' is always added
-func SetLogger(l *slog.Logger) {
-	logger = l.With(slog.String("module", "go-reliquary"))
-}
+func init() {
+	logLevel = slog.LevelVar{}
+	logLevel.Set(slog.LevelWarn)
 
-// SetLevel sets the logger to the default one with the given slog.Level
-// Use SetLogger for more configuration
-func SetLevel(level slog.Level) {
-	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	logger = &traceLogger{slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     &logLevel,
 		AddSource: true,
-		Level:     level,
-	})).With("module", "go-reliquary")
+	})).With("module", "go-reliquary")}
 }
 
-func trace(msg string, args ...interface{}) {
-	logger.Log(context.Background(), LevelTrace, msg, args...)
+// SetLogLevel sets the logger to the default one with the given slog.Level
+func SetLogLevel(level slog.Level) {
+	logLevel.Set(level)
 }
 
-func traceL(l *slog.Logger, msg string, args ...interface{}) {
-	l.Log(context.Background(), LevelTrace, msg, args...)
+// Not the best solution, I'd want to write a proper implementation at some point
+// in my own package. But good enough
+type traceLogger struct {
+	*slog.Logger
 }
 
-func isTraceEnabled() bool {
-	return logger.Enabled(context.Background(), LevelTrace)
+func (tl *traceLogger) Trace(msg string, args ...any) {
+	tl.Log(context.Background(), LevelTrace, msg, args...)
+}
+
+func (tl *traceLogger) IsTraceEnabled() bool {
+	return tl.Enabled(context.Background(), LevelTrace)
+}
+
+func (tl *traceLogger) WithArgs(args ...any) *traceLogger {
+	if len(args) == 0 {
+		return tl
+	}
+	c := tl.With(args...)
+	return &traceLogger{c}
 }
 
 func bytesAsHex(bytes []byte) string {

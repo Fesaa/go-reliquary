@@ -4,53 +4,53 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/fatedier/kcp-go"
-	"github.com/goark/mt/mt19937"
-	"log/slog"
 	"time"
 )
 
-// KcpSniffer is a structure that manages KCP connections.
-type KcpSniffer struct {
+type kcpSniffer struct {
 	ConvID    uint32
 	Kcp       *kcp.KCP
 	TimeStart time.Time
-	logger    *slog.Logger
+	logger    *traceLogger
 }
 
-// NewKcpSniffer creates a new KcpSniffer instance from the provided segment.
-func NewKcpSniffer(segment []byte) (*KcpSniffer, error) {
-	trace("creating new KcpSniffer", "segmentLen", len(segment))
+// newKcpSniffer creates a new kcpSniffer instance from the provided segment.
+func newKcpSniffer(segment []byte) (*kcpSniffer, error) {
+	logger.Info("creating new kcpSniffer", "segmentLen", len(segment))
+
 	convID, err := validateKcpSegment(segment)
 	if err != nil {
 		return nil, fmt.Errorf("could not create new KCP instance: %w", err)
 	}
-	return &KcpSniffer{
+
+	_kcp := kcp.NewKCP(convID, func(buf []byte, size int) {}) // ignore output
+	_kcp.WndSize(1024, 1024)
+
+	return &kcpSniffer{
 		ConvID:    convID,
-		Kcp:       newKcp(convID),
+		Kcp:       _kcp,
 		TimeStart: time.Now(),
-		logger:    logger.With("convID", convID),
+		logger:    logger.WithArgs("convID", convID),
 	}, nil
 }
 
-// ReceiveSegments processes incoming segments and returns received messages.
-func (ks *KcpSniffer) ReceiveSegments(segments []byte) [][]byte {
+func (ks *kcpSniffer) receive(segments []byte) ([][]byte, error) {
 	convID, err := validateKcpSegment(segments)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	if convID != ks.ConvID {
 		logger.Warn("warning: packet did not belong to conversation", "expected", ks.ConvID)
-		return nil
+		return nil, PacketNotFromConversation
 	}
 
-	// Reformat segments to skip bytes 4..8
-	segments = reformatKcpSegments(segments)
+	segments = ks.reformatKcpSegments(segments)
 
 	if num := ks.Kcp.Input(segments, true); num < 0 {
 		ks.logger.Error("could not input to KCP", "code", num)
 	} else {
-		traceL(ks.logger, "input successful", "size", len(segments))
+		ks.logger.Trace("input successful", "size", len(segments))
 	}
 
 	var recv [][]byte
@@ -68,11 +68,11 @@ func (ks *KcpSniffer) ReceiveSegments(segments []byte) [][]byte {
 		recv = append(recv, bytes)
 	}
 
-	ks.Kcp.Update(ks.Clock())
-	return recv
+	ks.Kcp.Update(ks.clock())
+	return recv, nil
 }
 
-func (ks *KcpSniffer) Clock() uint32 {
+func (ks *kcpSniffer) clock() uint32 {
 	now := time.Now()
 	if ks.TimeStart.After(now) {
 		panic("time went backwards")
@@ -80,30 +80,12 @@ func (ks *KcpSniffer) Clock() uint32 {
 	return uint32(now.Sub(ks.TimeStart).Milliseconds())
 }
 
-// newKcp initializes a new KCP instance.
-func newKcp(convID uint32) *kcp.KCP {
-	n := kcp.NewKCP(convID, func(buf []byte, size int) {
-		// ignore
-	})
-	n.WndSize(1024, 1024)
-	return n
-}
-
-// validateKcpSegment checks the validity of the KCP segment and extracts the conversation ID.
-func validateKcpSegment(payload []byte) (uint32, error) {
-	if len(payload) <= kcp.IKCP_OVERHEAD {
-		logger.Warn("kcp header was too short", "length", len(payload))
-		return 0, fmt.Errorf("KCP header too short")
-	}
-	return binary.LittleEndian.Uint32(payload), nil
-}
-
 // reformatKcpSegments reformats the segments to skip bytes 4..8.
-func reformatKcpSegments(data []byte) []byte {
+func (ks *kcpSniffer) reformatKcpSegments(data []byte) []byte {
 	var reformattedBytes []byte
 
-	if isTraceEnabled() {
-		trace("before split", "bytes", bytesAsHex(data), "len", len(data))
+	if logger.IsTraceEnabled() {
+		ks.logger.Trace("before split", "bytes", bytesAsHex(data), "len", len(data))
 	}
 
 	var i uint = 0
@@ -113,7 +95,6 @@ func reformatKcpSegments(data []byte) []byte {
 		remainingHeader := data[i+8 : i+28]
 
 		contentLen := uint(binary.LittleEndian.Uint32(data[i+24 : i+28]))
-		trace("contentLen", "len", contentLen, "curPos", i)
 		content := data[i+28 : i+28+contentLen]
 
 		reformattedBytes = append(reformattedBytes, convID...)
@@ -123,22 +104,18 @@ func reformatKcpSegments(data []byte) []byte {
 		i += 28 + contentLen
 	}
 
-	if isTraceEnabled() {
-		trace("after split", "bytes", bytesAsHex(reformattedBytes), "len", len(reformattedBytes))
+	if ks.logger.IsTraceEnabled() {
+		ks.logger.Trace("after split", "bytes", bytesAsHex(reformattedBytes), "len", len(reformattedBytes))
 	}
 
 	return reformattedBytes
 }
 
-func NewKeyFromSeed(seed uint64) []byte {
-	gen := mt19937.New((int64)(seed))
-
-	key := make([]byte, 0)
-
-	// Fill the key slice with random bytes
-	for i := 0; i < 512; i++ {
-		n := gen.Uint64()
-		key = binary.BigEndian.AppendUint64(key, n)
+// validateKcpSegment checks the validity of the KCP segment and extracts the conversation ID.
+func validateKcpSegment(payload []byte) (uint32, error) {
+	if len(payload) <= kcp.IKCP_OVERHEAD {
+		logger.Warn("kcp header was too short", "length", len(payload))
+		return 0, fmt.Errorf("KCP header too short")
 	}
-	return key
+	return binary.LittleEndian.Uint32(payload), nil
 }

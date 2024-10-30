@@ -33,7 +33,7 @@ func parseConnectionPacket(packet gopacket.Packet) (*ConnectionPacket, error) {
 		return nil, errors.New("no udp packet found")
 	}
 	udp := updLayer.(*layers.UDP)
-	direction := DirectionFromUdp(udp)
+	direction := directionFromUdp(udp)
 
 	if len(udp.Payload) <= 20 {
 		switch packetCode(udp.Payload) {
