@@ -3,8 +3,9 @@ package reliquary
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/fatedier/kcp-go"
 	"github.com/goark/mt/mt19937"
-	"github.com/xtaci/kcp-go"
+	"log/slog"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type KcpSniffer struct {
 	ConvID    uint32
 	Kcp       *kcp.KCP
 	TimeStart time.Time
+	logger    *slog.Logger
 }
 
 // NewKcpSniffer creates a new KcpSniffer instance from the provided segment.
@@ -26,6 +28,7 @@ func NewKcpSniffer(segment []byte) (*KcpSniffer, error) {
 		ConvID:    convID,
 		Kcp:       newKcp(convID),
 		TimeStart: time.Now(),
+		logger:    logger.With("convID", convID),
 	}, nil
 }
 
@@ -44,8 +47,10 @@ func (ks *KcpSniffer) ReceiveSegments(segments []byte) [][]byte {
 	// Reformat segments to skip bytes 4..8
 	segments = reformatKcpSegments(segments)
 
-	if num := ks.Kcp.Input(segments, true, false); num < 0 {
-		logger.Error("could not input to KCP", "code", num)
+	if num := ks.Kcp.Input(segments, true); num < 0 {
+		ks.logger.Error("could not input to KCP", "code", num)
+	} else {
+		traceL(ks.logger, "input successful", "size", len(segments))
 	}
 
 	var recv [][]byte
@@ -57,19 +62,29 @@ func (ks *KcpSniffer) ReceiveSegments(segments []byte) [][]byte {
 
 		bytes := make([]byte, size)
 		if num := ks.Kcp.Recv(bytes); num < 0 {
-			logger.Error("could not receive from KCP", "code", num)
+			ks.logger.Error("could not receive from KCP", "code", num)
 			continue
 		}
 		recv = append(recv, bytes)
 	}
 
-	//ks.Kcp.Update()
+	ks.Kcp.Update(ks.Clock())
 	return recv
+}
+
+func (ks *KcpSniffer) Clock() uint32 {
+	now := time.Now()
+	if ks.TimeStart.After(now) {
+		panic("time went backwards")
+	}
+	return uint32(now.Sub(ks.TimeStart).Milliseconds())
 }
 
 // newKcp initializes a new KCP instance.
 func newKcp(convID uint32) *kcp.KCP {
-	n := kcp.NewKCP(convID, nil)
+	n := kcp.NewKCP(convID, func(buf []byte, size int) {
+		// ignore
+	})
 	n.WndSize(1024, 1024)
 	return n
 }
@@ -86,36 +101,44 @@ func validateKcpSegment(payload []byte) (uint32, error) {
 // reformatKcpSegments reformats the segments to skip bytes 4..8.
 func reformatKcpSegments(data []byte) []byte {
 	var reformattedBytes []byte
-	i := 0
-	for i < len(data) {
+
+	if isTraceEnabled() {
+		trace("before split", "bytes", bytesAsHex(data), "len", len(data))
+	}
+
+	var i uint = 0
+	for i < uint(len(data)) {
 		convID := data[i : i+4]
 
 		remainingHeader := data[i+8 : i+28]
 
-		contentLen := binary.LittleEndian.Uint32(data[i+24 : i+28])
-		content := data[i+28 : i+28+int(contentLen)]
+		contentLen := uint(binary.LittleEndian.Uint32(data[i+24 : i+28]))
+		trace("contentLen", "len", contentLen, "curPos", i)
+		content := data[i+28 : i+28+contentLen]
 
 		reformattedBytes = append(reformattedBytes, convID...)
 		reformattedBytes = append(reformattedBytes, remainingHeader...)
 		reformattedBytes = append(reformattedBytes, content...)
 
-		i += 28 + int(contentLen)
+		i += 28 + contentLen
 	}
+
+	if isTraceEnabled() {
+		trace("after split", "bytes", bytesAsHex(reformattedBytes), "len", len(reformattedBytes))
+	}
+
 	return reformattedBytes
 }
 
 func NewKeyFromSeed(seed uint64) []byte {
 	gen := mt19937.New((int64)(seed))
 
-	key := make([]byte, 512)
+	key := make([]byte, 0)
 
 	// Fill the key slice with random bytes
-	for i := 0; i < 512; i += 8 {
+	for i := 0; i < 512; i++ {
 		n := gen.Uint64()
-		copy(key[i:i+8], []byte{
-			byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
-			byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
-		})
+		key = binary.BigEndian.AppendUint64(key, n)
 	}
 	return key
 }

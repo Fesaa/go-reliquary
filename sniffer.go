@@ -1,6 +1,7 @@
 package reliquary
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/Fesaa/go-reliquary/pb"
@@ -57,6 +58,9 @@ func (s *Sniffer) Register(commandId uint16, handlers ...Handler) *Sniffer {
 }
 
 func (s *Sniffer) register(commandId uint16, handler Handler) {
+	if handler == nil {
+		panic("handler must be non nil")
+	}
 	_, ok := packetRegistry[commandId]
 	if !ok {
 		panic(fmt.Sprintf("cannot register handler for unknown command %d", commandId))
@@ -75,20 +79,18 @@ func (s *Sniffer) fireHandler(commands []GameCommand) {
 		}
 
 		var msg = packetRegistry[cmd.Id]()
-		err := proto.Unmarshal(cmd.ProtoData, msg)
-		if err != nil {
-			l.Debug("failed to unmarshal packet")
+		l.Debug("extra command info before proto.Unmarshal", "dateLen", cmd.DataLen, "ProtoDataLen", len(cmd.ProtoData))
+		if err := proto.Unmarshal(cmd.ProtoData, msg); err != nil {
+			l.Error("failed to unmarshal packet", "err", err)
 			s.propagate(cmd, fmt.Errorf("cannot unmarshal protobuf packet: %w", err))
 			continue
 		}
 
-		go func() {
-			traceL(l, "firing handler")
-			if err = handler(cmd, msg); err != nil {
-				l.Debug("handler error")
-				s.propagate(cmd, err)
-			}
-		}()
+		traceL(l, "firing handler")
+		if err := handler(cmd, msg); err != nil {
+			l.Warn("handler error", "err", err)
+			s.propagate(cmd, err)
+		}
 	}
 }
 
@@ -100,7 +102,10 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	if err != nil {
 		return nil, err
 	}
-	trace("received connection packet", "type", connPacket.Type, "payloadLength", len(connPacket.Payload))
+
+	if isTraceEnabled() {
+		trace("received connection packet", "type", connPacket.Type, "payloadLength", len(connPacket.Payload), "bytes", bytesAsHex(connPacket.Payload))
+	}
 
 	switch connPacket.Type {
 	case HandshakeRequested:
@@ -167,6 +172,7 @@ func (s *Sniffer) handleKCP(direction Direction, segment []byte) ([]GameCommand,
 		commands = append(commands, *command)
 	}
 
+	trace("returning commands after KCP handle", "amount", len(commands))
 	return commands, nil
 }
 
@@ -182,6 +188,10 @@ func (s *Sniffer) receiveCommand(data []byte) (*GameCommand, error) {
 	command, err := GameCommandFromData(decryptedCommandData)
 	if err != nil {
 		return nil, err
+	}
+
+	if isTraceEnabled() {
+		trace("received", "data", base64.StdEncoding.EncodeToString(command.ProtoData))
 	}
 
 	if command.Id == PlayerGetTokenScRsp {

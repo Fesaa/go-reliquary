@@ -2,8 +2,10 @@ package reliquary
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 )
 
 var (
@@ -35,4 +37,16 @@ func trace(msg string, args ...interface{}) {
 
 func traceL(l *slog.Logger, msg string, args ...interface{}) {
 	l.Log(context.Background(), LevelTrace, msg, args...)
+}
+
+func isTraceEnabled() bool {
+	return logger.Enabled(context.Background(), LevelTrace)
+}
+
+func bytesAsHex(bytes []byte) string {
+	output := ""
+	for _, b := range bytes {
+		output += fmt.Sprintf("%02x", b)
+	}
+	return strings.TrimSpace(output)
 }

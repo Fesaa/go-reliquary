@@ -10,6 +10,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"sync"
@@ -43,30 +44,41 @@ var (
 		reliquary.ChessRogueCellUpdateNotify,
 		reliquary.RogueModifierSelectCellScRsp,
 		reliquary.ChessRogueUpdateMoneyInfoScNotify,
+		reliquary.ChessRogueStartScRsp,
+		reliquary.ChessRogueStartCsReq,
+		reliquary.GetPlayerBoardDataScRsp,
+		reliquary.PlayerLoginCsReq,
+		reliquary.PlayerGetTokenScRsp,
+		reliquary.GetRogueCollectionCsReq,
+		reliquary.PlayerGetTokenCsReq,
+		reliquary.PlayerGetTokenScRsp,
 	}
 )
+
+var sniffer *reliquary.Sniffer
 
 func main() {
 	go startHttpServer()
 
 	handle, err := connect()
+	//handle, err := read()
 	if err != nil {
 		panic(err)
 	}
 
 	defer handle.Close()
 
-	reliquary.SetLevel(slog.LevelInfo)
-	sniffer := reliquary.NewSniffer()
+	//reliquary.SetLevel(slog.LevelDebug)
+	sniffer = reliquary.NewSniffer()
 	for _, id := range logIds {
 		sniffer.Register(id, LogProtoMessage)
 	}
-
-	go func() {
-		for handlerErr := range sniffer.Errors() {
-			slog.Error("error while handling command", "id", handlerErr.CmdId, "err", handlerErr.Err)
-		}
-	}()
+	reliquary.SetLogger(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		//Level: slog.LevelDebug,
+		//Level:     reliquary.LevelTrace,
+		Level:     slog.LevelInfo,
+		AddSource: true,
+	})))
 
 	src := gopacket.NewPacketSource(handle, handle.LinkType())
 	slog.Info("starting sniffer")
@@ -93,7 +105,6 @@ func main() {
 
 			fmt.Printf("[%d] %s(%d)\n", i, cmd.Name, cmd.Id)
 		}
-
 	}
 }
 
@@ -104,6 +115,15 @@ func LogProtoMessage(cmd reliquary.GameCommand, message proto.Message) error {
 	}
 	fmt.Printf("%s(%d): %s\n\n", cmd.Name, cmd.Id, string(marshaledJSON))
 	return nil
+}
+
+func read() (*pcap.Handle, error) {
+	handle, err := pcap.OpenOffline("./out.pcapng")
+	if err != nil {
+		return nil, err
+	}
+
+	return handle, nil
 }
 
 func connect() (*pcap.Handle, error) {
@@ -121,6 +141,7 @@ func connect() (*pcap.Handle, error) {
 
 func startHttpServer() {
 	http.HandleFunc("/", addIDHandler)
+	http.HandleFunc("/add/", addFullPrintHandler)
 
 	fmt.Println("Starting server on :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -140,6 +161,20 @@ func addIDHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	ignoreIds = append(ignoreIds, uint16(id))
 	mu.Unlock()
+
+	_, _ = fmt.Fprintf(w, "ID %d added to list\n", id)
+}
+
+func addFullPrintHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Path[len("/add/"):]
+
+	id, err := strconv.ParseUint(idStr, 10, 16)
+	if err != nil {
+		http.Error(w, "Invalid ID: must be an integer between 0 and 65535", http.StatusBadRequest)
+		return
+	}
+
+	sniffer.Register(uint16(id), LogProtoMessage)
 
 	_, _ = fmt.Fprintf(w, "ID %d added to list\n", id)
 }
