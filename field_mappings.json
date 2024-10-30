@@ -4958,6 +4958,13 @@
   "ELGHPLPJJDE": "DiceType",
   "MFKKHJJAOPM": "CheatAttempts",
   "CFOJCCEFFPJ": "ReRollAttempts",
-  "FGEILPDBBGC": "RollResult"
+  "FGEILPDBBGC": "RollResult",
+  "CFKJKLEGNAP": "CheatChoice",
+  "LHINNDFFHHC": "DiceState",
+
+  "PCOELCAOLHA": "CellStatus",
+  "GGPBFFEJPMG": "source",
+
+  "ECIOJNHACLI": "CosmicFragmentAmount"
 
 }
