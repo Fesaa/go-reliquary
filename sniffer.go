@@ -9,15 +9,84 @@ import (
 )
 
 func NewSniffer() *Sniffer {
-	return &Sniffer{}
+	return &Sniffer{
+		handlerRegistry: make(map[uint16]func(cmd GameCommand, msg proto.Message) error),
+		errorCh:         make(chan HandlerError),
+	}
 }
 
 type Sniffer struct {
 	sentKcp *KcpSniffer
 	recvKcp *KcpSniffer
 	key     []byte
+
+	handlerRegistry map[uint16]func(cmd GameCommand, msg proto.Message) error
+	errorCh         chan HandlerError
 }
 
+type HandlerError struct {
+	CmdId uint16
+	Err   error
+}
+
+func (h *HandlerError) Error() string {
+	return fmt.Sprintf("handler %d error: %v", h.CmdId, h.Err)
+}
+
+// Errors returns the channel where handler errors are propagated to
+func (s *Sniffer) Errors() <-chan HandlerError {
+	return s.errorCh
+}
+
+func (s *Sniffer) propagate(cmd GameCommand, err error) {
+	s.errorCh <- HandlerError{
+		CmdId: cmd.Id,
+		Err:   err,
+	}
+}
+
+// Register a handler for the passed commandId, the msg in the function can be cast to the correct pb struct
+// This assumes you passed the correct commandId.
+func (s *Sniffer) Register(commandId uint16, handler func(cmd GameCommand, msg proto.Message) error) *Sniffer {
+	_, ok := packetRegistry[commandId]
+	if !ok {
+		panic(fmt.Sprintf("cannot register handler for unknown command %d", commandId))
+	}
+	s.handlerRegistry[commandId] = handler
+	logger.Debug("handler registered for command", "id", commandId, "name", PacketNames[(int)(commandId)])
+	return s
+}
+
+func (s *Sniffer) fireHandler(commands []GameCommand) {
+	for _, cmd := range commands {
+		l := logger.With("id", cmd.Id, "name", cmd.Name)
+		handler, ok := s.handlerRegistry[cmd.Id]
+		if !ok {
+			traceL(l, "no handler for command")
+			continue
+		}
+
+		var msg = packetRegistry[cmd.Id]()
+		err := proto.Unmarshal(cmd.ProtoData, msg)
+		if err != nil {
+			l.Debug("failed to unmarshal packet")
+			s.propagate(cmd, fmt.Errorf("cannot unmarshal protobuf packet: %w", err))
+			continue
+		}
+
+		go func() {
+			traceL(l, "firing handler")
+			if err = handler(cmd, msg); err != nil {
+				l.Debug("handler error")
+				s.propagate(cmd, err)
+			}
+		}()
+	}
+}
+
+// ReadPacket reads a packet, and returns the correct GamePacket
+// You can handle pb conversion yourself by checking the PacketType against CommandsPacketType
+// Consider using Sniffer.Register
 func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	connPacket, err := parseConnectionPacket(packet)
 	if err != nil {
@@ -40,6 +109,7 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 		if err != nil {
 			return nil, err
 		}
+		s.fireHandler(commands)
 		return &CommandsPacket{Commands: commands}, nil
 	}
 

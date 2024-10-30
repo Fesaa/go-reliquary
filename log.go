@@ -32,3 +32,7 @@ func SetLevel(level slog.Level) {
 func trace(msg string, args ...interface{}) {
 	logger.Log(context.Background(), LevelTrace, msg, args...)
 }
+
+func traceL(l *slog.Logger, msg string, args ...interface{}) {
+	l.Log(context.Background(), LevelTrace, msg, args...)
+}

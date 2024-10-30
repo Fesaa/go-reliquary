@@ -48,7 +48,7 @@ func getKnownKey(data []byte) []byte {
 		panic("Failed to decode string")
 	}
 
-	logger.Info("using preset decryption key")
+	logger.Debug("using preset decryption key")
 	return key
 }
 
