@@ -48,11 +48,18 @@ import (
     "github.com/Fesaa/go-reliquary/pb"
     "google.golang.org/protobuf/proto"
 )
+
+func PacketProto(id uint16) proto.Message {
+    if f, ok := packetRegistry[id]; ok {
+        return f()
+    }
+    return nil
+}
     
 // The commands with ids [5638, 4745, 4720, 4711, 42, 83, 2828] are not mapped
 // these have not been correctly mapped in either the translation mappings
 // Or the original proto file
-var packetRegistry = map[uint16]func() proto.Message{
+var packetRegistry = map[uint16]func() proto.Message {
 """
     for key, value in data.items():
         # Translation for these ids are currently not correctly included in the protobuf

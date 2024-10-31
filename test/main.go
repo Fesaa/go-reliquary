@@ -58,9 +58,9 @@ var sniffer *reliquary.Sniffer
 func main() {
 	go startHttpServer()
 
-	//handle, err := connect()
+	handle, err := connect()
 	//handle, err := read("./out.pcapng")
-	handle, err := read("./out_first_43.pcapng")
+	//handle, err := read("./out_first_43.pcapng")
 	if err != nil {
 		panic(err)
 	}
@@ -68,10 +68,7 @@ func main() {
 	defer handle.Close()
 
 	reliquary.SetLogLevel(zerolog.InfoLevel)
-	sniffer = reliquary.NewSniffer()
-	for _, id := range logIds {
-		sniffer.Register(id, LogProtoMessage)
-	}
+	sniffer = &reliquary.Sniffer{}
 
 	src := gopacket.NewPacketSource(handle, handle.LinkType())
 	slog.Info("starting sniffer")
@@ -87,18 +84,36 @@ func main() {
 		}
 
 		commandsPacket := p.(*reliquary.CommandsPacket)
-		for _, cmd := range commandsPacket.Commands {
-			mu.Lock()
-			// Don't log ignored packets, or double log packets
-			if slices.Contains(ignoreIds, cmd.Id) || slices.Contains(logIds, cmd.Id) {
-				mu.Unlock()
-				continue
-			}
-			mu.Unlock()
-
-			//fmt.Printf("[%d] %s(%d)\n", i, cmd.Name, cmd.Id)
+		for i, cmd := range commandsPacket.Commands {
+			handleCmd(i, cmd)
 		}
 	}
+}
+
+func handleCmd(i int, cmd reliquary.GameCommand) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if slices.Contains(logIds, cmd.Id) {
+		msg := reliquary.PacketProto(cmd.Id)
+		if err := proto.Unmarshal(cmd.ProtoData, msg); err != nil {
+			slog.Error("encountered an error while unmarshalling proto data", "error", err)
+			return
+		}
+
+		if err := LogProtoMessage(cmd, msg); err != nil {
+			slog.Error("encountered an error while logging proto message", "error", err)
+			return
+		}
+
+		return
+	}
+
+	if slices.Contains(ignoreIds, cmd.Id) {
+		return
+	}
+
+	fmt.Printf("[%d] %s(%d)\n", i, cmd.Name, cmd.Id)
 }
 
 func LogProtoMessage(cmd reliquary.GameCommand, message proto.Message) error {
@@ -174,7 +189,9 @@ func addFullPrintHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sniffer.Register(uint16(id), LogProtoMessage)
+	mu.Lock()
+	defer mu.Unlock()
+	logIds = append(logIds, uint16(id))
 
 	_, _ = fmt.Fprintf(w, "ID %d added to list\n", id)
 }

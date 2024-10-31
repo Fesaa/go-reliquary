@@ -9,94 +9,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// NewSniffer Create a new sniffer
-func NewSniffer() *Sniffer {
-	return &Sniffer{
-		handlerRegistry: make(map[uint16]Handler),
-		errorCh:         make(chan HandlerError),
-	}
-}
-
 type Sniffer struct {
 	sentKcp     *kcpSniffer
 	recvKcp     *kcpSniffer
 	key         *Key
 	initialKeys map[uint32]*Key
-
-	handlerRegistry map[uint16]Handler
-	errorCh         chan HandlerError
-}
-
-// Handler the msg can always be cast to the correct pb struct, if you registered it with the correct id
-type Handler func(cmd GameCommand, msg proto.Message) error
-
-type HandlerError struct {
-	CmdId uint16
-	Err   error
-}
-
-func (h *HandlerError) Error() string {
-	return fmt.Sprintf("handler %d error: %v", h.CmdId, h.Err)
-}
-
-// Errors returns the channel where handler errors are propagated to
-func (s *Sniffer) Errors() <-chan HandlerError {
-	return s.errorCh
-}
-
-func (s *Sniffer) propagate(cmd GameCommand, err error) {
-	s.errorCh <- HandlerError{
-		CmdId: cmd.Id,
-		Err:   err,
-	}
-}
-
-// Register a handler for the passed commandId, the msg in the function can be cast to the correct pb struct
-// This assumes you passed the correct commandId. Will panic if not
-func (s *Sniffer) Register(commandId uint16, handlers ...Handler) *Sniffer {
-	for _, h := range handlers {
-		s.register(commandId, h)
-	}
-	return s
-}
-
-func (s *Sniffer) register(commandId uint16, handler Handler) {
-	if handler == nil {
-		panic("handler must be non nil")
-	}
-	_, ok := packetRegistry[commandId]
-	if !ok {
-		panic(fmt.Sprintf("cannot register handler for unknown command %d", commandId))
-	}
-	s.handlerRegistry[commandId] = handler
-	logger.Debug().
-		Uint16("id", commandId).
-		Str("name", packetNames[commandId]).
-		Msg("registered handler")
-}
-
-func (s *Sniffer) fireHandler(commands []GameCommand) {
-	for _, cmd := range commands {
-		l := logger.With().Uint16("id", cmd.Id).Str("name", cmd.Name).Logger()
-		handler, ok := s.handlerRegistry[cmd.Id]
-		if !ok {
-			l.Trace().Msg("no handler for command")
-			continue
-		}
-
-		var msg = packetRegistry[cmd.Id]()
-		if err := proto.Unmarshal(cmd.ProtoData, msg); err != nil {
-			l.Error().Err(err).Msg("failed to unmarshal packet")
-			s.propagate(cmd, fmt.Errorf("cannot unmarshal protobuf packet: %w", err))
-			continue
-		}
-
-		l.Trace().Msg("firing handler")
-		if err := handler(cmd, msg); err != nil {
-			l.Warn().Err(err).Msg("failed to handle command")
-			s.propagate(cmd, err)
-		}
-	}
 }
 
 // ReadPacket reads a packet, and returns the correct GamePacket
@@ -146,7 +63,6 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 			l.Warn().Msg("received empty commands list")
 		}
 
-		s.fireHandler(commands)
 		return &CommandsPacket{
 			_conn:     connPacket,
 			Commands:  commands,
