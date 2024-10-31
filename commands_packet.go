@@ -72,7 +72,7 @@ func gameCommandFromData(data []byte) (*GameCommand, error) {
 	finalIdx := 12 + (uint)(dataLen) + (uint)(headerLen)
 	commandData := data[12:finalIdx]
 
-	commandName, ok := PacketNames[commandId]
+	commandName, ok := packetNames[commandId]
 	if !ok {
 		logger.Warn().Uint16("commandId", commandId).Msg("received command with unknown name")
 		commandName = ""

@@ -16,7 +16,21 @@ def main():
         file.write(go_code_ids)
 
     # Generate Go code for packet_names.go with map
-    go_code_names = "package reliquary\n\n// Generated file, do not edit\n\nvar PacketNames = map[uint16]string{\n"
+    go_code_names = """package reliquary
+    
+// Generated file, do not edit
+    
+// PacketName return the name of packet by id
+// returns an empty string, if the passed id is invalid
+func PacketName(id uint16) string {
+    if name, ok := packetNames[id]; ok {
+        return name
+    }
+    return ""
+}
+    
+var packetNames = map[uint16]string{ 
+"""
     for key, value in data.items():
         go_code_names += f"    {key}: \"{value}\",\n"
     go_code_names += "}\n"
@@ -28,18 +42,18 @@ def main():
     # Generate Go code for packet_registry.go with map
     go_code_registry = """package reliquary
     
-    // Generated file, do not edit
+// Generated file, do not edit
     
-    import (
-        "github.com/Fesaa/go-reliquary/pb"
-        "google.golang.org/protobuf/proto"
-    )
+import (
+    "github.com/Fesaa/go-reliquary/pb"
+    "google.golang.org/protobuf/proto"
+)
     
-    // The commands with ids [5638, 4745, 4720, 4711, 42, 83, 2828] are not mapped
-    // these have not been correctly mapped in either the translation mappings
-    // Or the original proto file
-    var packetRegistry = map[uint16]func() proto.Message{
-    """
+// The commands with ids [5638, 4745, 4720, 4711, 42, 83, 2828] are not mapped
+// these have not been correctly mapped in either the translation mappings
+// Or the original proto file
+var packetRegistry = map[uint16]func() proto.Message{
+"""
     for key, value in data.items():
         # Translation for these ids are currently not correctly included in the protobuf
         if int(key) in [5638, 4745, 4720, 4711, 42, 83, 2828]:

@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// NewSniffer Create a new sniffer
 func NewSniffer() *Sniffer {
 	return &Sniffer{
 		handlerRegistry: make(map[uint16]Handler),
@@ -26,6 +27,7 @@ type Sniffer struct {
 	errorCh         chan HandlerError
 }
 
+// Handler the msg can always be cast to the correct pb struct, if you registered it with the correct id
 type Handler func(cmd GameCommand, msg proto.Message) error
 
 type HandlerError struct {
@@ -69,7 +71,7 @@ func (s *Sniffer) register(commandId uint16, handler Handler) {
 	s.handlerRegistry[commandId] = handler
 	logger.Debug().
 		Uint16("id", commandId).
-		Str("name", PacketNames[commandId]).
+		Str("name", packetNames[commandId]).
 		Msg("registered handler")
 }
 
@@ -99,7 +101,8 @@ func (s *Sniffer) fireHandler(commands []GameCommand) {
 
 // ReadPacket reads a packet, and returns the correct GamePacket
 // You can handle pb conversion yourself by checking the PacketType against CommandsPacketType
-// Consider using Sniffer.Register
+//
+// Consider using Sniffer.Register if you just want to do something with a specific packet
 func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	connPacket, err := parseConnectionPacket(packet)
 	if err != nil {
@@ -132,7 +135,7 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 		return connPacket, nil
 	case SegmentData:
 		var commands []GameCommand
-		if commands, err = s.handleKCP(connPacket.Direction, connPacket.Payload); err != nil {
+		if commands, err = s.read(connPacket.Direction, connPacket.Payload); err != nil {
 			return nil, err
 		}
 		if commands == nil {
@@ -155,7 +158,7 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	return nil, errors.New("unhandled packet")
 }
 
-func (s *Sniffer) handleKCP(direction Direction, segment []byte) ([]GameCommand, error) {
+func (s *Sniffer) read(direction Direction, segment []byte) ([]GameCommand, error) {
 	dKcp := s.getKCP(direction)
 
 	if dKcp == nil {

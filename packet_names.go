@@ -1,8 +1,17 @@
 package reliquary
-
+    
 // Generated file, do not edit
-
-var PacketNames = map[uint16]string{
+    
+// PacketName return the name of packet by id
+// returns an empty string, if the passed id is invalid
+func PacketName(id uint16) string {
+    if name, ok := packetNames[id]; ok {
+        return name
+    }
+    return ""
+}
+    
+var packetNames = map[uint16]string{ 
     2639: "TakeTrialActivityRewardScRsp",
     2686: "CurTrialActivityScNotify",
     2660: "TakeMaterialSubmitActivityRewardScRsp",
