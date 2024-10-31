@@ -3,7 +3,6 @@ package reliquary
 import (
 	"fmt"
 	"github.com/rs/zerolog"
-	"os"
 	"strings"
 )
 
@@ -12,16 +11,18 @@ var (
 )
 
 func init() {
-	output := zerolog.ConsoleWriter{Out: os.Stdout}
+	output := zerolog.NewConsoleWriter()
 	output.FormatLevel = func(i interface{}) string {
 		return strings.ToUpper(fmt.Sprintf("%-6s", i))
 	}
+	output.TimeFormat = "2006-01-02 15:04:05"
 
 	logger = zerolog.New(output).
 		Level(zerolog.WarnLevel).
 		With().
 		Timestamp().
-		Str("module", "go-reliquary").
+		Caller().
+		//Str("module", "go-reliquary").
 		Logger()
 }
 

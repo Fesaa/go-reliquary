@@ -108,11 +108,13 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	l := logger.With().
 		Any("packetType", string(connPacket.Type)).
 		Any("direction", connPacket.Direction).
+		Int("len", len(connPacket.Payload)).
 		Logger()
+	l.Debug().Msg("Start packet")
+	defer l.Debug().Msg("End packet")
 
 	if isTraceEnabled(l) {
 		l.Trace().
-			Int("len", len(connPacket.Payload)).
 			Str("bytes", bytesAsHex(connPacket.Payload)).
 			Msg("received connection packet")
 	}
@@ -133,6 +135,14 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 		if commands, err = s.handleKCP(connPacket.Direction, connPacket.Payload); err != nil {
 			return nil, err
 		}
+		if commands == nil {
+			return &ContinuePacket{}, nil
+		}
+
+		if len(commands) == 0 {
+			l.Warn().Msg("received empty commands list")
+		}
+
 		s.fireHandler(commands)
 		return &CommandsPacket{
 			_conn:     connPacket,
@@ -166,6 +176,12 @@ func (s *Sniffer) handleKCP(direction Direction, segment []byte) ([]GameCommand,
 	if err != nil {
 		return nil, err
 	}
+
+	// The command was split up in smaller packages. And will be returned when the last part has arrived
+	if splitData == nil {
+		return nil, nil
+	}
+
 	for _, data := range splitData {
 		command, err := s.readCommand(data)
 		if err != nil {

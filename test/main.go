@@ -7,6 +7,7 @@ import (
 	"github.com/Fesaa/go-reliquary"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"log"
@@ -57,14 +58,16 @@ var sniffer *reliquary.Sniffer
 func main() {
 	go startHttpServer()
 
-	handle, err := connect()
-	//handle, err := read()
+	//handle, err := connect()
+	//handle, err := read("./out.pcapng")
+	handle, err := read("./out_first_43.pcapng")
 	if err != nil {
 		panic(err)
 	}
 
 	defer handle.Close()
 
+	reliquary.SetLogLevel(zerolog.InfoLevel)
 	sniffer = reliquary.NewSniffer()
 	for _, id := range logIds {
 		sniffer.Register(id, LogProtoMessage)
@@ -84,7 +87,7 @@ func main() {
 		}
 
 		commandsPacket := p.(*reliquary.CommandsPacket)
-		for i, cmd := range commandsPacket.Commands {
+		for _, cmd := range commandsPacket.Commands {
 			mu.Lock()
 			// Don't log ignored packets, or double log packets
 			if slices.Contains(ignoreIds, cmd.Id) || slices.Contains(logIds, cmd.Id) {
@@ -93,7 +96,7 @@ func main() {
 			}
 			mu.Unlock()
 
-			fmt.Printf("[%d] %s(%d)\n", i, cmd.Name, cmd.Id)
+			//fmt.Printf("[%d] %s(%d)\n", i, cmd.Name, cmd.Id)
 		}
 	}
 }
@@ -110,12 +113,12 @@ func LogProtoMessage(cmd reliquary.GameCommand, message proto.Message) error {
 		return err
 	}
 
-	fmt.Printf("%s(%d):\n %s\n\n", cmd.Name, cmd.Id, indentedJson.String())
+	//fmt.Printf("%s(%d):\n %s\n\n", cmd.Name, cmd.Id, indentedJson.String())
 	return nil
 }
 
-func read() (*pcap.Handle, error) {
-	handle, err := pcap.OpenOffline("./out.pcapng")
+func read(path string) (*pcap.Handle, error) {
+	handle, err := pcap.OpenOffline(path)
 	if err != nil {
 		return nil, err
 	}

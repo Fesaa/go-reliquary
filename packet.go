@@ -12,6 +12,7 @@ type PacketType byte
 const (
 	ConnectionPacketType PacketType = iota
 	CommandsPacketType   PacketType = iota
+	ContinuePacketType   PacketType = iota
 )
 
 func packetCode(payload []byte) uint32 {

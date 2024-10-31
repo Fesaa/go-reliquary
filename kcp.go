@@ -56,17 +56,21 @@ func (ks *kcpSniffer) receive(segments []byte) ([][]byte, error) {
 			Int("code", num).
 			Msg("could not input to KCP")
 	} else {
-		ks.logger.Trace().
+		ks.logger.Debug().
 			Int("size", len(segments)).
 			Msg("input successful")
 	}
 
 	var recv [][]byte
+	hasReadAny := false
+
 	for {
 		size := ks.Kcp.PeekSize()
+		ks.logger.Trace().Int("size", size).Msg("reading bytes")
 		if size < 0 {
 			break // No more messages
 		}
+		hasReadAny = true
 
 		bytes := make([]byte, size)
 		if num := ks.Kcp.Recv(bytes); num < 0 {
@@ -79,6 +83,11 @@ func (ks *kcpSniffer) receive(segments []byte) ([][]byte, error) {
 	}
 
 	ks.Kcp.Update(ks.clock())
+	// No commands have been read as the data is split up.
+	if !hasReadAny {
+		return nil, nil
+	}
+
 	return recv, nil
 }
 
