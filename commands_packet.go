@@ -3,7 +3,10 @@ package reliquary
 import (
 	"encoding/binary"
 	"errors"
+	"google.golang.org/protobuf/proto"
 )
+
+var CannotInferProtoType = errors.New("cannot infer proto type from id")
 
 type CommandsPacket struct {
 	_conn     *ConnectionPacket
@@ -28,6 +31,17 @@ func (cp CommandsPacket) PacketType() PacketType {
 // ConnPacket returns the original SegmentData ConnectionPacket
 func (cp CommandsPacket) ConnPacket() *ConnectionPacket {
 	return cp._conn
+}
+
+func (cp GameCommand) Unmarshal() (proto.Message, error) {
+	msg := PacketProto(cp.Id)
+	if msg == nil {
+		return nil, CannotInferProtoType
+	}
+	if err := proto.Unmarshal(cp.ProtoData, msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 // Game command header.
