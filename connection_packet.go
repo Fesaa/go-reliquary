@@ -38,13 +38,13 @@ func parseConnectionPacket(packet gopacket.Packet) (*ConnectionPacket, error) {
 	if len(udp.Payload) <= 20 {
 		switch packetCode(udp.Payload) {
 		case 0xFF:
-			logger.Debug("handshake requested")
+			logger.Debug().Msg("handshake requested")
 			return &ConnectionPacket{Type: HandshakeRequested, Direction: direction}, nil
 		case 404:
-			logger.Debug("disconnected")
+			logger.Debug().Msg("disconnected")
 			return &ConnectionPacket{Type: Disconnected, Direction: direction}, nil
 		default:
-			logger.Debug("handshake established")
+			logger.Debug().Msg("handshake established")
 			return &ConnectionPacket{Type: HandshakeEstablished, Direction: direction}, nil
 		}
 	}

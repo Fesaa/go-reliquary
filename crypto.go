@@ -11,16 +11,22 @@ type Key struct {
 
 func (k *Key) decryptCommand(encrypted []byte) []byte {
 
-	if logger.IsTraceEnabled() {
-		logger.Trace("before decryption data", "bytes", bytesAsHex(encrypted), "len", len(encrypted))
+	if isTraceEnabled() {
+		logger.Trace().
+			Str("bytes", bytesAsHex(encrypted)).
+			Int("len", len(encrypted)).
+			Msg("data before decrypt")
 	}
 
 	for i := 0; i < len(encrypted); i++ {
 		encrypted[i] ^= k._bytes[i%len(k._bytes)]
 	}
 
-	if logger.IsTraceEnabled() {
-		logger.Trace("after decryption data", "bytes", bytesAsHex(encrypted), "len", len(encrypted))
+	if isTraceEnabled() {
+		logger.Trace().
+			Str("bytes", bytesAsHex(encrypted)).
+			Int("len", len(encrypted)).
+			Msg("data after decrypt")
 	}
 
 	return encrypted

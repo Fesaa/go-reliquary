@@ -1,56 +1,43 @@
 package reliquary
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
+	"github.com/rs/zerolog"
 	"os"
 	"strings"
 )
 
 var (
-	// LevelTrace a level below slog.LevelDebug, will log every packet received
-	LevelTrace slog.Level = -8
-
-	logLevel slog.LevelVar
-	logger   *traceLogger
+	logger zerolog.Logger
 )
 
 func init() {
-	logLevel = slog.LevelVar{}
-	logLevel.Set(slog.LevelWarn)
+	output := zerolog.ConsoleWriter{Out: os.Stdout}
+	output.FormatLevel = func(i interface{}) string {
+		return strings.ToUpper(fmt.Sprintf("%-6s", i))
+	}
 
-	logger = &traceLogger{slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     &logLevel,
-		AddSource: true,
-	})).With("module", "go-reliquary")}
+	logger = zerolog.New(output).
+		Level(zerolog.WarnLevel).
+		With().
+		Timestamp().
+		Str("module", "go-reliquary").
+		Logger()
 }
 
 // SetLogLevel sets the logger to the default one with the given slog.Level
-func SetLogLevel(level slog.Level) {
-	logLevel.Set(level)
+func SetLogLevel(level zerolog.Level) {
+	logger = logger.Level(level)
 }
 
-// Not the best solution, I'd want to write a proper implementation at some point
-// in my own package. But good enough
-type traceLogger struct {
-	*slog.Logger
-}
-
-func (tl *traceLogger) Trace(msg string, args ...any) {
-	tl.Log(context.Background(), LevelTrace, msg, args...)
-}
-
-func (tl *traceLogger) IsTraceEnabled() bool {
-	return tl.Enabled(context.Background(), LevelTrace)
-}
-
-func (tl *traceLogger) WithArgs(args ...any) *traceLogger {
-	if len(args) == 0 {
-		return tl
-	}
-	c := tl.With(args...)
-	return &traceLogger{c}
+func isTraceEnabled(loggers ...zerolog.Logger) bool {
+	l := func() zerolog.Logger {
+		if len(loggers) > 0 {
+			return loggers[0]
+		}
+		return logger
+	}()
+	return l.GetLevel() <= zerolog.TraceLevel
 }
 
 func bytesAsHex(bytes []byte) string {

@@ -31,12 +31,18 @@ func (cp CommandsPacket) ConnPacket() *ConnectionPacket {
 }
 
 func gameCommandFromData(data []byte) (*GameCommand, error) {
-	if logger.IsTraceEnabled() {
-		logger.Trace("reading command from bytes", "len", len(data), "bytes", bytesAsHex(data))
+	if isTraceEnabled() {
+		logger.Trace().
+			Int("len", len(data)).
+			Str("bytes", bytesAsHex(data)).
+			Msg("reading command from bytes")
 	}
 
 	if len(data) < HEADER_OVERHEAD {
-		logger.Warn("header not complete, missing bytes", "wanted", HEADER_OVERHEAD, "got", len(data))
+		logger.Warn().
+			Int("wanted", HEADER_OVERHEAD).
+			Int("got", len(data)).
+			Msg("header not complete, missing bytes")
 		return nil, errors.New("header not complete")
 	}
 
@@ -49,7 +55,7 @@ func gameCommandFromData(data []byte) (*GameCommand, error) {
 
 	commandName, ok := PacketNames[commandId]
 	if !ok {
-		logger.Warn("received command with unknown name")
+		logger.Warn().Uint16("commandId", commandId).Msg("received command with unknown name")
 		commandName = ""
 	}
 

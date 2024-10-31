@@ -35,6 +35,9 @@ func directionFromUdp(udp *layers.UDP) Direction {
 		return Send
 	}
 
-	logger.Warn("packet found with unknown direction", "dst", udp.DstPort.String(), "src", udp.SrcPort.String())
+	logger.Warn().
+		Str("dst", udp.DstPort.String()).
+		Str("src", udp.SrcPort.String()).
+		Msg("packet found with unknown direction")
 	return Unknown
 }

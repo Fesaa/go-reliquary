@@ -67,28 +67,31 @@ func (s *Sniffer) register(commandId uint16, handler Handler) {
 		panic(fmt.Sprintf("cannot register handler for unknown command %d", commandId))
 	}
 	s.handlerRegistry[commandId] = handler
-	logger.Debug("handler registered for command", "id", commandId, "name", PacketNames[commandId])
+	logger.Debug().
+		Uint16("id", commandId).
+		Str("name", PacketNames[commandId]).
+		Msg("registered handler")
 }
 
 func (s *Sniffer) fireHandler(commands []GameCommand) {
 	for _, cmd := range commands {
-		l := logger.WithArgs("id", cmd.Id, "name", cmd.Name)
+		l := logger.With().Uint16("id", cmd.Id).Str("name", cmd.Name).Logger()
 		handler, ok := s.handlerRegistry[cmd.Id]
 		if !ok {
-			l.Trace("no handler for command")
+			l.Trace().Msg("no handler for command")
 			continue
 		}
 
 		var msg = packetRegistry[cmd.Id]()
 		if err := proto.Unmarshal(cmd.ProtoData, msg); err != nil {
-			l.Error("failed to unmarshal packet", "err", err)
+			l.Error().Err(err).Msg("failed to unmarshal packet")
 			s.propagate(cmd, fmt.Errorf("cannot unmarshal protobuf packet: %w", err))
 			continue
 		}
 
-		l.Trace("firing handler")
+		l.Trace().Msg("firing handler")
 		if err := handler(cmd, msg); err != nil {
-			l.Warn("handler error", "err", err)
+			l.Warn().Err(err).Msg("failed to handle command")
 			s.propagate(cmd, err)
 		}
 	}
@@ -102,10 +105,16 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := logger.WithArgs("packetType", connPacket.Type, "direction", connPacket.Direction)
+	l := logger.With().
+		Any("packetType", string(connPacket.Type)).
+		Any("direction", connPacket.Direction).
+		Logger()
 
-	if l.IsTraceEnabled() {
-		l.Trace("received connection packet", "payloadLength", len(connPacket.Payload), "bytes", bytesAsHex(connPacket.Payload))
+	if isTraceEnabled(l) {
+		l.Trace().
+			Int("len", len(connPacket.Payload)).
+			Str("bytes", bytesAsHex(connPacket.Payload)).
+			Msg("received connection packet")
 	}
 
 	switch connPacket.Type {
@@ -113,7 +122,7 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 		s.sentKcp = nil
 		s.recvKcp = nil
 		s.key = nil
-		l.Info("state reset after HandshakeRequested packet")
+		l.Info().Msg("state reset after HandshakeRequested packet")
 		return connPacket, nil
 	case HandshakeEstablished:
 		return connPacket, nil
@@ -132,7 +141,7 @@ func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 		}, nil
 	}
 
-	l.Warn("unhandled packet", "len", len(connPacket.Payload))
+	l.Warn().Int("len", len(connPacket.Payload)).Msg("unhandled packet")
 	return nil, errors.New("unhandled packet")
 }
 
@@ -162,7 +171,10 @@ func (s *Sniffer) handleKCP(direction Direction, segment []byte) ([]GameCommand,
 		if err != nil {
 			return nil, err
 		}
-		logger.Trace("command packet read from SegmentData", "commandId", command.Id, "dataLen", len(command.ProtoData))
+		logger.Trace().
+			Uint16("id", command.Id).
+			Int("dataLen", len(command.ProtoData)).
+			Msg("command packet read from SegmentData")
 		commands = append(commands, *command)
 	}
 
@@ -212,8 +224,8 @@ func (s *Sniffer) readCommand(data []byte) (*GameCommand, error) {
 		return nil, err
 	}
 
-	if logger.IsTraceEnabled() {
-		logger.Trace("received", "data", base64.StdEncoding.EncodeToString(command.ProtoData))
+	if isTraceEnabled() {
+		logger.Trace().Str("data", base64.StdEncoding.EncodeToString(command.ProtoData)).Msg("received")
 	}
 
 	if command.Id == PlayerGetTokenScRsp {
@@ -225,7 +237,7 @@ func (s *Sniffer) readCommand(data []byte) (*GameCommand, error) {
 
 		keyBytes := newKeyBytesFromSeed(seed)
 		s.key = &Key{_bytes: keyBytes}
-		logger.Info("new session Key was set", "seed", seed)
+		logger.Info().Uint64("seed", seed).Msg("new session Key was set")
 	}
 
 	return command, nil

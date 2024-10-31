@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/fatedier/kcp-go"
+	"github.com/rs/zerolog"
 	"time"
 )
 
@@ -11,12 +12,12 @@ type kcpSniffer struct {
 	ConvID    uint32
 	Kcp       *kcp.KCP
 	TimeStart time.Time
-	logger    *traceLogger
+	logger    zerolog.Logger
 }
 
 // newKcpSniffer creates a new kcpSniffer instance from the provided segment.
 func newKcpSniffer(segment []byte) (*kcpSniffer, error) {
-	logger.Info("creating new kcpSniffer", "segmentLen", len(segment))
+	logger.Info().Int("segmentLen", len(segment)).Msg("creating new kcpSniffer")
 
 	convID, err := validateKcpSegment(segment)
 	if err != nil {
@@ -30,7 +31,7 @@ func newKcpSniffer(segment []byte) (*kcpSniffer, error) {
 		ConvID:    convID,
 		Kcp:       _kcp,
 		TimeStart: time.Now(),
-		logger:    logger.WithArgs("convID", convID),
+		logger:    logger.With().Uint32("convID", convID).Logger(),
 	}, nil
 }
 
@@ -41,16 +42,23 @@ func (ks *kcpSniffer) receive(segments []byte) ([][]byte, error) {
 	}
 
 	if convID != ks.ConvID {
-		logger.Warn("warning: packet did not belong to conversation", "expected", ks.ConvID)
+		logger.Warn().
+			Uint32("expected", ks.ConvID).
+			Uint32("got", convID).
+			Msg("invalid KCP segment")
 		return nil, PacketNotFromConversation
 	}
 
 	segments = ks.reformatKcpSegments(segments)
 
 	if num := ks.Kcp.Input(segments, true); num < 0 {
-		ks.logger.Error("could not input to KCP", "code", num)
+		ks.logger.Error().
+			Int("code", num).
+			Msg("could not input to KCP")
 	} else {
-		ks.logger.Trace("input successful", "size", len(segments))
+		ks.logger.Trace().
+			Int("size", len(segments)).
+			Msg("input successful")
 	}
 
 	var recv [][]byte
@@ -62,7 +70,9 @@ func (ks *kcpSniffer) receive(segments []byte) ([][]byte, error) {
 
 		bytes := make([]byte, size)
 		if num := ks.Kcp.Recv(bytes); num < 0 {
-			ks.logger.Error("could not receive from KCP", "code", num)
+			ks.logger.Error().
+				Int("code", num).
+				Msg("could not receive from KCP")
 			continue
 		}
 		recv = append(recv, bytes)
@@ -84,8 +94,11 @@ func (ks *kcpSniffer) clock() uint32 {
 func (ks *kcpSniffer) reformatKcpSegments(data []byte) []byte {
 	var reformattedBytes []byte
 
-	if logger.IsTraceEnabled() {
-		ks.logger.Trace("before split", "bytes", bytesAsHex(data), "len", len(data))
+	if isTraceEnabled() {
+		ks.logger.Trace().
+			Int("len", len(data)).
+			Str("bytes", bytesAsHex(data)).
+			Msg("before split")
 	}
 
 	var i uint = 0
@@ -104,8 +117,11 @@ func (ks *kcpSniffer) reformatKcpSegments(data []byte) []byte {
 		i += 28 + contentLen
 	}
 
-	if ks.logger.IsTraceEnabled() {
-		ks.logger.Trace("after split", "bytes", bytesAsHex(reformattedBytes), "len", len(reformattedBytes))
+	if isTraceEnabled() {
+		ks.logger.Trace().
+			Int("len", len(reformattedBytes)).
+			Str("bytes", bytesAsHex(reformattedBytes)).
+			Msg("after split")
 	}
 
 	return reformattedBytes
@@ -114,7 +130,9 @@ func (ks *kcpSniffer) reformatKcpSegments(data []byte) []byte {
 // validateKcpSegment checks the validity of the KCP segment and extracts the conversation ID.
 func validateKcpSegment(payload []byte) (uint32, error) {
 	if len(payload) <= kcp.IKCP_OVERHEAD {
-		logger.Warn("kcp header was too short", "length", len(payload))
+		logger.Warn().
+			Int("len", len(payload)).
+			Msg("kcp header was too short")
 		return 0, fmt.Errorf("KCP header too short")
 	}
 	return binary.LittleEndian.Uint32(payload), nil
