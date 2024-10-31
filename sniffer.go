@@ -18,8 +18,6 @@ type Sniffer struct {
 
 // ReadPacket reads a packet, and returns the correct GamePacket
 // You can handle pb conversion yourself by checking the PacketType against CommandsPacketType
-//
-// Consider using Sniffer.Register if you just want to do something with a specific packet
 func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
 	connPacket, err := parseConnectionPacket(packet)
 	if err != nil {
