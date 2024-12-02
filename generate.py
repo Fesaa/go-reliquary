@@ -56,14 +56,14 @@ func PacketProto(id uint16) proto.Message {
     return nil
 }
     
-// The commands with ids [5638, 4745, 4720, 4711, 42, 83, 2828] are not mapped
+// Some command ids are not mapping correctly. We manually filter them out
 // these have not been correctly mapped in either the translation mappings
 // Or the original proto file
 var packetRegistry = map[uint16]func() proto.Message {
 """
     for key, value in data.items():
         # Translation for these ids are currently not correctly included in the protobuf
-        if int(key) in [5638, 4745, 4720, 4711, 42, 83, 2828]:
+        if int(key) in [4773, 4719, 4779, 46, 3, 2880, 5616, 8070, 8010]:
             continue
 
         go_code_registry += f"    {key}: func() proto.Message {{ return &pb.{value}{{}} }},\n"
