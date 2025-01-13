@@ -1,21 +1,17 @@
 import json
 
 def main():
-    # Load JSON data
     with open('proto/PacketIds.json', 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    # Generate Go code for packet_ids.go
     go_code_ids = "package reliquary\n\n// Generated file, do not edit\n\nconst (\n"
-    for key, value in data.items():
+    for key, value in sorted(data.items(), key=lambda item: item[1]):
         go_code_ids += f"    {value} = {key}\n"
     go_code_ids += ")\n"
 
-    # Write packet_ids.go file
     with open("packet_ids.go", "w") as file:
         file.write(go_code_ids)
 
-    # Generate Go code for packet_names.go with map
     go_code_names = """package reliquary
     
 // Generated file, do not edit
@@ -31,15 +27,13 @@ func PacketName(id uint16) string {
     
 var packetNames = map[uint16]string{ 
 """
-    for key, value in data.items():
+    for key, value in sorted(data.items(), key=lambda item: int(item[0])):
         go_code_names += f"    {key}: \"{value}\",\n"
     go_code_names += "}\n"
 
-    # Write packet_names.go file
     with open("packet_names.go", "w") as file:
         file.write(go_code_names)
 
-    # Generate Go code for packet_registry.go with map
     go_code_registry = """package reliquary
     
 // Generated file, do not edit
@@ -63,13 +57,12 @@ var packetRegistry = map[uint16]func() proto.Message {
 """
     for key, value in data.items():
         # Translation for these ids are currently not correctly included in the protobuf
-        if int(key) in [4773, 4719, 4779, 46, 3, 2880, 5616, 8070, 8010]:
+        if int(key) in [4775, 4719, 4712, 313, 335, 317, 373, 84, 27, 2824, 5693, 8010, 8076]:
             continue
 
         go_code_registry += f"    {key}: func() proto.Message {{ return &pb.{value}{{}} }},\n"
     go_code_registry += "}\n"
 
-    # Write packet_registry.go file
     with open("packet_registry.go", "w") as file:
         file.write(go_code_registry)
 
