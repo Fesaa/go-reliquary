@@ -32,7 +32,7 @@ func (k *Key) decryptCommand(encrypted []byte) []byte {
 	return encrypted
 }
 
-func newKeyBytesFromSeed(seed uint64) []byte {
+func KeyFromSeed(seed uint64) []byte {
 	gen := mt19937.New((int64)(seed))
 
 	key := make([]byte, 0)

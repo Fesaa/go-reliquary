@@ -16,6 +16,13 @@ type Sniffer struct {
 	initialKeys map[uint32]*Key
 }
 
+func (s *Sniffer) AddKey(version uint32, key Key) {
+	if _, ok := s.initialKeys[version]; ok {
+		logger.Debug().Uint32("version", version).Msg("Replacing key")
+	}
+	s.initialKeys[version] = &key
+}
+
 // ReadPacket reads a packet, and returns the correct GamePacket
 // You can handle pb conversion yourself by checking the PacketType against CommandsPacketType
 func (s *Sniffer) ReadPacket(packet gopacket.Packet) (GamePacket, error) {
@@ -168,7 +175,7 @@ func (s *Sniffer) readCommand(data []byte) (*GameCommand, error) {
 		}
 		seed := playerGetTokenScRsp.SecretKeySeed
 
-		keyBytes := newKeyBytesFromSeed(seed)
+		keyBytes := KeyFromSeed(seed)
 		s.key = &Key{_bytes: keyBytes}
 		logger.Info().Uint64("seed", seed).Msg("new session Key was set")
 	}
