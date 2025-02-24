@@ -15,7 +15,7 @@ def main():
     go_code_names = """package reliquary
     
 // Generated file, do not edit
-    
+
 // PacketName return the name of packet by id
 // returns an empty string, if the passed id is invalid
 func PacketName(id uint16) string {
@@ -24,7 +24,7 @@ func PacketName(id uint16) string {
     }
     return ""
 }
-    
+
 var packetNames = map[uint16]string{ 
 """
     for key, value in sorted(data.items(), key=lambda item: int(item[0])):
@@ -35,9 +35,9 @@ var packetNames = map[uint16]string{
         file.write(go_code_names)
 
     go_code_registry = """package reliquary
-    
+
 // Generated file, do not edit
-    
+
 import (
     "github.com/Fesaa/go-reliquary/pb"
     "google.golang.org/protobuf/proto"
@@ -49,7 +49,7 @@ func PacketProto(id uint16) proto.Message {
     }
     return nil
 }
-    
+
 // Some command ids are not mapping correctly. We manually filter them out
 // these have not been correctly mapped in either the translation mappings
 // Or the original proto file
