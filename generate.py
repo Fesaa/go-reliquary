@@ -57,7 +57,7 @@ var packetRegistry = map[uint16]func() proto.Message {
 """
     for key, value in data.items():
         # Translation for these ids are currently not correctly included in the protobuf
-        if int(key) in [4775, 4719, 4712, 313, 335, 317, 373, 84, 27, 2824, 5693, 8010, 8076]:
+        if int(key) in [4795, 4796, 4739, 58, 24, 2828, 5695, 5691, 5618, 5611, 5605, 5617, 8038, 8081]:
             continue
 
         go_code_registry += f"    {key}: func() proto.Message {{ return &pb.{value}{{}} }},\n"
