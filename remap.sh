@@ -1,4 +1,4 @@
-export VERSION="3.1.0"
+export VERSION="3.2.0"
 
 PROTO_FILE="proto/StarRail_${VERSION}.translated.proto"
 python3 remap.py

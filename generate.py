@@ -1,6 +1,9 @@
 import json
 
 def main():
+    with open('pb/generated.translated.pb.go', 'r', encoding='utf-8') as f:
+        proto = f.read()
+
     with open('proto/PacketIds.json', 'r', encoding='utf-8') as f:
         data = json.load(f)
 
@@ -56,8 +59,8 @@ func PacketProto(id uint16) proto.Message {
 var packetRegistry = map[uint16]func() proto.Message {
 """
     for key, value in data.items():
-        # Translation for these ids are currently not correctly included in the protobuf
-        if int(key) in [4795, 4796, 4739, 58, 24, 2828, 5695, 5691, 5618, 5611, 5605, 5617, 8038, 8081]:
+        if f"type {value} struct" not in proto:
+            print(f"Skipping {key} as {value} was not found in the generated pb file")
             continue
 
         go_code_registry += f"    {key}: func() proto.Message {{ return &pb.{value}{{}} }},\n"
