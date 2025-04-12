@@ -5721,7 +5721,7 @@
 	"KPPAPMOGFGI": "RogueDebugMessageScNotify",
 	"KMONAGFELPG": "uid",
 	"CDIDJLNABLO": "CurrentMultiPathAvatarIds",
-	"IOMCGKLJJPA": "MultiPathAvatarTypeInfoList",
+	"IOMCGKLJJPA": "MultiPathAvatarList",
 	"HALNDFOGJNF": "BasicTypeIdList",
 	"EGJBBOBMLBJ": "IsGetAll",
 	"ECDNCDKJODG": "AvatarList",
@@ -5736,5 +5736,11 @@
 	"JHHGGIBCECF": "RewardsClaimed",
 	"PICHIHHCOCB": "Slot",
 	"PPOGIBIJDBH": "RelicUniqueId",
-	"MLKLAIFOHCF": "PointId"
+	"MLKLAIFOHCF": "PointId",
+	"MENCMIPNPCE": "SkillTreeNode",
+	"EEMLDIGIOJG": "Avatar",
+	"DPAFHPKJIMA": "SkillTreeList",
+	"LCKBEJGGOHH": "MultiPathAvatar",
+	"OBLCCGAEILP": "MultiPathAvatarType",
+	"PGHAFLEFFBM": "DressedSkinId"
 }
