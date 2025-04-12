@@ -5754,5 +5754,10 @@
 	"FDPHFMJNHFK": "EquippedAvatarID",
 	"CJFGBFMLPAH": "UniqueID",
 	"PDPKAJPLGBB": "SubAffixList",
-	"OIIGEBNHLAE": "SubAffix"
+	"OIIGEBNHLAE": "SubAffix",
+	"OEDPBAGHIDP": "MainAffixID",
+	"IJHFOPDNEDE": "Discard",
+	"GDNAINGMPBC": "AffixID",
+	"KHADHNNCFLH": "cnt",
+	"KBMCHLGDKEF": "step"
 }
