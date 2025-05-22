@@ -15,11 +15,12 @@ type CommandsPacket struct {
 }
 
 type GameCommand struct {
-	Id        uint16
-	Name      string
-	HeaderLen uint16
-	DataLen   uint32
-	ProtoData []byte
+	Id         uint16
+	Name       string
+	HeaderLen  uint16
+	DataLen    uint32
+	HeaderData []byte
+	ProtoData  []byte
 }
 
 func (CommandsPacket) isGamePacket() {}
@@ -84,7 +85,8 @@ func gameCommandFromData(data []byte) (*GameCommand, error) {
 	dataLen := binary.BigEndian.Uint32(data[8:12])
 
 	finalIdx := 12 + (uint)(dataLen) + (uint)(headerLen)
-	commandData := data[12:finalIdx]
+	header := data[12 : 12+headerLen]
+	commandData := data[12+headerLen : finalIdx]
 
 	commandName, ok := packetNames[commandId]
 	if !ok {
@@ -93,11 +95,12 @@ func gameCommandFromData(data []byte) (*GameCommand, error) {
 	}
 
 	command := &GameCommand{
-		Id:        commandId,
-		Name:      commandName,
-		HeaderLen: headerLen,
-		DataLen:   dataLen,
-		ProtoData: commandData,
+		Id:         commandId,
+		Name:       commandName,
+		HeaderLen:  headerLen,
+		DataLen:    dataLen,
+		HeaderData: header,
+		ProtoData:  commandData,
 	}
 	return command, nil
 }

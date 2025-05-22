@@ -58,8 +58,8 @@ var sniffer *reliquary.Sniffer
 func main() {
 	go startHttpServer()
 
-	handle, err := connect()
-	//handle, err := read("./out.pcapng")
+	//handle, err := connect()
+	handle, err := read("./3.3.pcapng")
 	//handle, err := read("./out_first_43.pcapng")
 	if err != nil {
 		panic(err)
