@@ -59,8 +59,7 @@ func main() {
 	go startHttpServer()
 
 	//handle, err := connect()
-	handle, err := read("./3.3.pcapng")
-	//handle, err := read("./out_first_43.pcapng")
+	handle, err := read("./hsr.pcapng")
 	if err != nil {
 		panic(err)
 	}
